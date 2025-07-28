@@ -48,6 +48,14 @@ func NewBigInt(val *big.Int, scale int32) Decimal {
 
 // NewString parses a string representation of a decimal number into a Decimal.
 // It supports formats like "123", "123.45", "-123.45", and scientific notation like "1.23e+5", "-4.5E-2".
+// For example: 1.23e+5
+// mantissaStr = "1.23"
+// exponentStr = "5"
+// unscaledStr = "123", mantissaScale = 2(2 digits after the decimal point)
+// finalScale = mantissaScale - exponent = 2 - 5 = -3
+// Decimal{unscaledValue: 123, scale: -3} representing 123 * 10^3 = 123000
+// if scale is positive, it means the number has that many digits after the decimal point.
+// if scale is negative, we times the number by 10^(scale) to get the actual value.
 func NewString(val string) (Decimal, error) {
 	if val == "" {
 		return Decimal{}, fmt.Errorf("cannot parse empty string to Decimal")
@@ -56,11 +64,14 @@ func NewString(val string) (Decimal, error) {
 	originalVal := val
 
 	isNegative := false
-	if val[0] == '-' {
+	switch val[0] {
+	case '-':
 		isNegative = true
 		val = val[1:]
-	} else if val[0] == '+' {
+	case '+':
 		val = val[1:]
+	default:
+		// No sign, continue with the original value
 	}
 
 	// Check for scientific notation 'e' or 'E'
@@ -73,10 +84,9 @@ func NewString(val string) (Decimal, error) {
 	}
 
 	var mantissaStr string
-	var exponent int64 = 0 // Default exponent is 0
+	var exponent int64 = 0
 
 	if eIndex != -1 {
-		// Scientific notation found
 		mantissaStr = val[:eIndex]
 		exponentStr := val[eIndex+1:]
 
