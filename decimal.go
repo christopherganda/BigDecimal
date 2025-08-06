@@ -3,6 +3,7 @@ package decimal
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 )
 
@@ -157,4 +158,32 @@ func NewString(val string) (Decimal, error) {
 		unscaledValue: unscaledValue,
 		scale:         finalScale,
 	}, nil
+}
+
+// NewFloat64 creates a Decimal from a float64 with best precision.
+func NewFloat64(val float64) Decimal {
+	// Convert float64 to string to preserve precision
+	str := strconv.FormatFloat(val, 'g', -1, 64)
+	dec, err := NewString(str)
+	if err != nil {
+		// fallback: treat as zero
+		return Decimal{unscaledValue: big.NewInt(0), scale: 0}
+	}
+	return dec
+}
+
+// NewFromRat creates a Decimal from a big.Rat with the given precision (digits after decimal point).
+func NewFromRat(val *big.Rat, precision int32) Decimal {
+	scaleFactor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(precision)), nil)
+	num := new(big.Int).Mul(val.Num(), scaleFactor)
+	unscaled := num.Div(num, val.Denom())
+	return Decimal{
+		unscaledValue: unscaled,
+		scale:         precision,
+	}
+}
+
+func NewFromBytes(val []byte) (Decimal, error) {
+	strVal := string(val)
+	return NewString(strVal)
 }
