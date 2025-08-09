@@ -1,35 +1,50 @@
 package decimal
 
-import "math/big"
+import (
+	"math/big"
+)
+
+// rescale returns a new Decimal with its scale adjusted to a target scale.
+// If the target scale is smaller than the current scale, it truncates the
+// unscaled value, resulting in a loss of precision. It will never return an error.
+func (d Decimal) rescale(targetScale int32) Decimal {
+	// If scales are the same, return the original.
+	if d.scale == targetScale {
+		return d
+	}
+
+	var deltaScale int32
+	var newUnscaled *big.Int
+
+	if d.scale > targetScale {
+		// Scaling down: division.
+		deltaScale = d.scale - targetScale
+		pow10 := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(deltaScale)), nil)
+		newUnscaled = new(big.Int).Div(d.unscaledValue, pow10)
+	} else {
+		// Scaling up: multiplication.
+		deltaScale = targetScale - d.scale
+		pow10 := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(deltaScale)), nil)
+		newUnscaled = new(big.Int).Mul(d.unscaledValue, pow10)
+	}
+
+	return Decimal{
+		unscaledValue: newUnscaled,
+		scale:         targetScale,
+	}
+}
 
 func (d Decimal) Add(other Decimal) Decimal {
-	// Determine the final scale.
 	finalScale := d.scale
 	if other.scale > d.scale {
 		finalScale = other.scale
 	}
 
-	// Create new Decimals with aligned scales.
-	d1 := d // In a real implementation, you'd call a rescale function here.
-	d2 := other
-
-	// Example of a naive rescale implementation for demonstration.
-	if d1.scale < finalScale {
-		pow10 := big.NewInt(0).Exp(big.NewInt(10), big.NewInt(int64(finalScale-d1.scale)), nil)
-		d1.unscaledValue.Mul(d1.unscaledValue, pow10)
-		d1.scale = finalScale
-	}
-	if d2.scale < finalScale {
-		pow10 := big.NewInt(0).Exp(big.NewInt(10), big.NewInt(int64(finalScale-d2.scale)), nil)
-		d2.unscaledValue.Mul(d2.unscaledValue, pow10)
-		d2.scale = finalScale
-	}
-
-	// Perform the addition on the unscaled values.
-	result := new(big.Int).Add(d1.unscaledValue, d2.unscaledValue)
+	d1 := d.rescale(finalScale)
+	d2 := other.rescale(finalScale)
 
 	return Decimal{
-		unscaledValue: result,
+		unscaledValue: new(big.Int).Add(d1.unscaledValue, d2.unscaledValue),
 		scale:         finalScale,
 	}
 }
