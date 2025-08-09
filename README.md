@@ -1,1 +1,1 @@
-# BigDecimal
+# Go-BigDecimal
