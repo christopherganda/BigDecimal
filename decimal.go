@@ -60,28 +60,28 @@ func New(val int64, scale int32) Decimal {
 	}
 }
 
-func NewInt(val int32) Decimal {
+func NewFromInt(val int32) Decimal {
 	return Decimal{
 		unscaledValue: big.NewInt(int64(val)),
 		scale:         0,
 	}
 }
 
-func NewInt64(val int64) Decimal {
+func NewFromInt64(val int64) Decimal {
 	return Decimal{
 		unscaledValue: big.NewInt(val),
 		scale:         0,
 	}
 }
 
-func NewUint64(val uint64) Decimal {
+func NewFromUint64(val uint64) Decimal {
 	return Decimal{
 		unscaledValue: new(big.Int).SetUint64(val), // Correctly uses SetUint64
 		scale:         0,
 	}
 }
 
-func NewBigInt(val *big.Int, scale int32) (Decimal, error) {
+func NewFromBigInt(val *big.Int, scale int32) (Decimal, error) {
 	if val == nil {
 		return Decimal{}, fmt.Errorf("nil big.Int value")
 	}
@@ -91,7 +91,7 @@ func NewBigInt(val *big.Int, scale int32) (Decimal, error) {
 	}, nil
 }
 
-// NewString parses a string representation of a decimal number into a Decimal.
+// NewFromString parses a string representation of a decimal number into a Decimal.
 // It supports formats like "123", "123.45", "-123.45", and scientific notation like "1.23e+5", "-4.5E-2".
 // For example: 1.23e+5
 // mantissaStr = "1.23"
@@ -101,7 +101,7 @@ func NewBigInt(val *big.Int, scale int32) (Decimal, error) {
 // Decimal{unscaledValue: 123, scale: -3} representing 123 * 10^3 = 123000
 // if scale is positive, it means the number has that many digits after the decimal point.
 // if scale is negative, we times the number by 10^(scale) to get the actual value.
-func NewString(val string) (Decimal, error) {
+func NewFromString(val string) (Decimal, error) {
 	if val == "" {
 		return Decimal{}, fmt.Errorf("cannot parse empty string to Decimal")
 	}
@@ -360,104 +360,83 @@ func NewFromBytes(val []byte) (Decimal, error) {
 	}
 	// Reuse NewString logic but work directly with bytes
 	// to avoid string conversion
-	return parseBytes(val)
+	return NewFromString(string(val))
 }
 
-func parseBytes(val []byte) (Decimal, error) {
-	originalVal := string(val)
+// Scan implements the sql.Scanner interface.
+// It allows our Decimal type to be scanned directly from a database query.
+func (d *Decimal) Scan(value interface{}) error {
+	if value == nil {
+		// Handle a NULL value from the database
+		d.unscaledValue = new(big.Int)
+		d.scale = 0
+		return nil
+	}
 
-	isNegative := false
-	switch originalVal[0] {
-	case '-':
-		isNegative = true
-		originalVal = originalVal[1:]
-	case '+':
-		originalVal = originalVal[1:]
+	var parsedDecimal Decimal
+	var err error
+	switch v := value.(type) {
+	case string:
+		parsedDecimal, err = NewFromString(v)
+	case []byte:
+		parsedDecimal, err = NewFromBytes(v)
 	default:
-		// No sign, continue with the original value
+		// Return an error for unsupported types
+		return fmt.Errorf("unsupported type for Decimal Scan: %T", value)
 	}
 
-	// Check for scientific notation 'e' or 'E'
-	eIndex := -1
-	for i, r := range originalVal {
-		if r == 'e' || r == 'E' {
-			eIndex = i
-			break
+	if err != nil {
+		return fmt.Errorf("failed to scan string to Decimal: %w", err)
+	}
+
+	// Set the receiver's fields to the newly parsed value
+	*d = parsedDecimal
+
+	return nil
+}
+
+// String returns the string representation of the decimal.
+func (d Decimal) String() string {
+	if d.unscaledValue == nil {
+		return "<nil>"
+	}
+
+	numStr := d.unscaledValue.String()
+	scale := d.scale
+
+	if scale == 0 {
+		return numStr
+	}
+
+	// Handle negative scale (exponent)
+	if scale < 0 {
+		// Multiply by 10^(-scale)
+		exponent := -scale
+		multiplier := pow10(exponent)
+		// Create a new big.Int to avoid modifying the original
+		tempInt := new(big.Int).Set(d.unscaledValue)
+		tempInt.Mul(tempInt, multiplier)
+		return tempInt.String()
+	}
+
+	// Handle positive scale (fractional part)
+	if scale > 0 {
+		// Insert decimal point
+		integerPart := numStr[:len(numStr)-int(scale)]
+		fractionalPart := numStr[len(numStr)-int(scale):]
+
+		// Pad with leading zeros if integer part is empty
+		if integerPart == "" {
+			integerPart = "0"
 		}
-	}
 
-	var mantissaStr string
-	var exponent int64 = 0
-
-	if eIndex != -1 {
-		mantissaStr = originalVal[:eIndex]
-		exponentStr := originalVal[eIndex+1:]
-
-		if exponentStr == "" {
-			return Decimal{}, fmt.Errorf("invalid scientific notation: missing exponent after 'e' in %q", originalVal)
+		// Pad with trailing zeros if fractional part is too short
+		if len(fractionalPart) < int(scale) {
+			fractionalPart = fractionalPart + strings.Repeat("0", int(scale)-len(fractionalPart))
 		}
 
-		// Parse exponent
-		expBigInt := new(big.Int)
-		_, ok := expBigInt.SetString(exponentStr, 10)
-		if !ok {
-			return Decimal{}, fmt.Errorf("invalid exponent in scientific notation: %q", originalVal)
-		}
-		// Convert to int64, checking for overflow if scale can be int32
-		if !expBigInt.IsInt64() {
-			return Decimal{}, fmt.Errorf("exponent out of int64 range: %q", originalVal)
-		}
-		exponent = expBigInt.Int64()
-
-	} else {
-		mantissaStr = originalVal
+		return integerPart + "." + fractionalPart
 	}
 
-	// Parse the mantissa part (which might still contain a decimal point)
-	parts := strings.Split(mantissaStr, ".")
-	var unscaledStr string
-	var mantissaScale int32
-
-	switch len(parts) {
-	case 1:
-		unscaledStr = parts[0]
-		mantissaScale = 0
-	case 2:
-		integerPart := parts[0]
-		fractionalPart := parts[1]
-
-		if fractionalPart == "" {
-			// e.g., "123." or "123.e+5"
-			unscaledStr = integerPart
-			mantissaScale = 0
-		} else {
-			// Ensure fractional part contains only digits
-			for _, r := range fractionalPart {
-				if r < '0' || r > '9' {
-					return Decimal{}, fmt.Errorf("invalid character in fractional part: %q", originalVal)
-				}
-			}
-			unscaledStr = integerPart + fractionalPart
-			mantissaScale = int32(len(fractionalPart))
-		}
-	default:
-		return Decimal{}, fmt.Errorf("invalid decimal string format: %q (multiple decimal points in mantissa)", originalVal)
-	}
-
-	unscaledValue := new(big.Int)
-	_, ok := unscaledValue.SetString(unscaledStr, 10)
-	if !ok {
-		return Decimal{}, fmt.Errorf("invalid characters in number part: %q", originalVal)
-	}
-
-	if isNegative {
-		unscaledValue.Neg(unscaledValue)
-	}
-
-	finalScale := mantissaScale - int32(exponent)
-
-	return Decimal{
-		unscaledValue: unscaledValue,
-		scale:         finalScale,
-	}, nil
+	return ""
 }

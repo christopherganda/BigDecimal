@@ -41,7 +41,7 @@ func TestNewInt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.wantVal, func(t *testing.T) {
-			got := NewInt(tt.input)
+			got := NewFromInt(tt.input)
 			if got.unscaledValue.String() != tt.wantVal {
 				t.Errorf("NewInt(%v) = %v, want %v", tt.input, got.unscaledValue, tt.wantVal)
 			}
@@ -65,7 +65,7 @@ func TestNewInt64(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.wantVal, func(t *testing.T) {
-			got := NewInt64(tt.input)
+			got := NewFromInt64(tt.input)
 			if got.unscaledValue.String() != tt.wantVal {
 				t.Errorf("NewInt64(%v) = %v, want %v", tt.input, got.unscaledValue, tt.wantVal)
 			}
@@ -88,7 +88,7 @@ func TestNewUint64(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.wantVal, func(t *testing.T) {
-			got := NewUint64(tt.input)
+			got := NewFromUint64(tt.input)
 			if got.unscaledValue.String() != tt.wantVal {
 				t.Errorf("NewUint64(%v) = %v, want %v", tt.input, got.unscaledValue, tt.wantVal)
 			}
@@ -114,7 +114,7 @@ func TestNewBigInt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewBigInt(tt.input, tt.scale)
+			got, err := NewFromBigInt(tt.input, tt.scale)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewBigInt() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -155,7 +155,7 @@ func TestNewString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := NewString(tt.input)
+			got, err := NewFromString(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewString(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
 			}
@@ -286,36 +286,6 @@ func TestNewFromBytes(t *testing.T) {
 	}
 }
 
-func TestParseBytes(t *testing.T) {
-	tests := []struct {
-		input     []byte
-		wantVal   string
-		wantScale int32
-		wantErr   bool
-	}{
-		{[]byte("123.45"), "12345", 2, false},
-		{[]byte("-123.45"), "-12345", 2, false},
-		{[]byte("1.23e+2"), "123", 0, false},
-		{[]byte("abc"), "", 0, true},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.input), func(t *testing.T) {
-			got, err := parseBytes(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseBytes(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
-			}
-			if !tt.wantErr {
-				if got.unscaledValue.String() != tt.wantVal {
-					t.Errorf("parseBytes(%q) = %v, want %v", tt.input, got.unscaledValue, tt.wantVal)
-				}
-				if got.scale != tt.wantScale {
-					t.Errorf("parseBytes(%q) scale = %v, want %v", tt.input, got.scale, tt.wantScale)
-				}
-			}
-		})
-	}
-}
-
 func TestPow10(t *testing.T) {
 	tests := []struct {
 		input int32
@@ -352,5 +322,58 @@ func TestPow10Cache(t *testing.T) {
 	p2 := pow10(10)
 	if p1 != p2 {
 		t.Error("pow10 cache not working: got different instances for same power")
+	}
+}
+
+func TestDecimal_Scan(t *testing.T) {
+	tests := []struct {
+		input     string
+		wantVal   string
+		wantScale int32
+		wantErr   bool
+	}{
+		{"123", "123", 0, false},
+		{"-123.45", "-12345", 2, false},
+		{"0.00123", "123", 5, false},
+		{"1.23e+2", "123", 0, false},
+		{"invalid", "", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			var d Decimal
+			err := d.Scan(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Scan(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if !tt.wantErr {
+				if d.unscaledValue.String() != tt.wantVal {
+					t.Errorf("Scan(%q) = %v, want %v", tt.input, d.unscaledValue, tt.wantVal)
+				}
+				if d.scale != tt.wantScale {
+					t.Errorf("Scan(%q) scale = %v, want %v", tt.input, d.scale, tt.wantScale)
+				}
+			}
+		})
+	}
+}
+
+func TestDecimal_String(t *testing.T) {
+	tests := []struct {
+		input Decimal
+		want  string
+	}{
+		{New(123, 0), "123"},
+		{New(-12345, 2), "-123.45"},
+		{New(0, 0), "0"},
+		{New(100000, 2), "1000.00"},
+		{New(100000, -2), "10000000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := tt.input.String()
+			if got != tt.want {
+				t.Errorf("String() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
