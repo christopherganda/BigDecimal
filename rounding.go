@@ -105,12 +105,9 @@ func (rm RoundingMode) shouldRoundUp(rem, denom *big.Int) bool {
 		return rem.Bit(0) == 1
 
 	case RoundUnnecessary:
-		if rem.Sign() != 0 {
-			panic("rounding necessary but RoundUnnecessary specified")
-		}
 		return false
 
 	default:
-		panic("unknown rounding mode")
+		return false // Unknown rounding mode
 	}
 }
