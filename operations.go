@@ -48,3 +48,18 @@ func (d Decimal) Add(other Decimal) Decimal {
 		scale:         finalScale,
 	}
 }
+
+func (d Decimal) Sub(other Decimal) Decimal {
+	finalScale := d.scale
+	if other.scale > d.scale {
+		finalScale = other.scale
+	}
+
+	d1 := d.rescale(finalScale)
+	d2 := other.rescale(finalScale)
+
+	return Decimal{
+		unscaledValue: new(big.Int).Sub(d1.unscaledValue, d2.unscaledValue),
+		scale:         finalScale,
+	}
+}
