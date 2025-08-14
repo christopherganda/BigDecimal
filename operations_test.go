@@ -215,7 +215,90 @@ func TestOperations_Sub(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := tc.a.Sub(tc.b)
+			result := tc.a.Subtract(tc.b)
+
+			if result.unscaledValue.Cmp(tc.expected.unscaledValue) != 0 {
+				t.Errorf("unscaledValue mismatch for %s: got %s, want %s", tc.name, result.unscaledValue, tc.expected.unscaledValue)
+			}
+			if result.scale != tc.expected.scale {
+				t.Errorf("scale mismatch for %s: got %d, want %d", tc.name, result.scale, tc.expected.scale)
+			}
+		})
+	}
+}
+
+func TestOperations_Multiply(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        Decimal
+		b        Decimal
+		expected Decimal
+	}{
+		{
+			"MultiplyTwoPositiveNumbers",
+			New(123, 2),   // 1.23
+			New(456, 2),   // 4.56
+			New(56088, 4), // 5.6088
+		},
+		{
+			"MultiplyWithZero",
+			New(1234, 3), // 1.234
+			New(0, 1),    // 0.0
+			New(0, 4),    // 0.0000
+		},
+		{
+			"MultiplyWithNegative",
+			New(125, 2),  // 1.25
+			New(-5, 1),   // -0.5
+			New(-625, 3), // -0.625
+		},
+		{
+			"MultiplyTwoNegatives",
+			New(-125, 2), // -1.25
+			New(-5, 1),   // -0.5
+			New(625, 3),  // 0.625
+		},
+		{
+			"MultiplyDifferentScales_Simple",
+			New(123, 2), // 1.23
+			New(4, 0),   // 4
+			New(492, 2), // 4.92
+		},
+		{
+			"MultiplyDifferentScales_Complex",
+			New(1234, 2), // 12.34
+			New(5, 1),    // 0.5
+			New(6170, 3), // 6.170
+		},
+		{
+			"MultiplySmallNumbers",
+			New(1, 2), // 0.01
+			New(1, 2), // 0.01
+			New(1, 4), // 0.0001
+		},
+		{
+			"MultiplySmallNumbers",
+			New(2, 1), // 0.2
+			New(3, 1), // 0.3
+			New(6, 2), // 0.06
+		},
+		{
+			"MultiplyLargeNumbers",
+			Decimal{unscaledValue: bigIntFromString("9223372036854775807"), scale: 0}, // A large number
+			Decimal{unscaledValue: bigIntFromString("100"), scale: 0},                 // 100
+			Decimal{unscaledValue: bigIntFromString("922337203685477580700"), scale: 0},
+		},
+		{
+			"MultiplyLargeAndScaled",
+			Decimal{unscaledValue: bigIntFromString("123456789"), scale: 4},          // 12345.6789
+			Decimal{unscaledValue: bigIntFromString("987654321"), scale: 5},          // 9876.54321
+			Decimal{unscaledValue: bigIntFromString("121932631112635269"), scale: 9}, // 121932631.112635269
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.a.Multiply(tc.b)
 
 			if result.unscaledValue.Cmp(tc.expected.unscaledValue) != 0 {
 				t.Errorf("unscaledValue mismatch for %s: got %s, want %s", tc.name, result.unscaledValue, tc.expected.unscaledValue)
