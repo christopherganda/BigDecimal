@@ -35,10 +35,7 @@ func (d Decimal) rescale(targetScale int32) Decimal {
 }
 
 func (d Decimal) Add(other Decimal) Decimal {
-	finalScale := d.scale
-	if other.scale > d.scale {
-		finalScale = other.scale
-	}
+	finalScale := max(d.scale, other.scale)
 
 	d1 := d.rescale(finalScale)
 	d2 := other.rescale(finalScale)
@@ -50,10 +47,7 @@ func (d Decimal) Add(other Decimal) Decimal {
 }
 
 func (d Decimal) Subtract(other Decimal) Decimal {
-	finalScale := d.scale
-	if other.scale > d.scale {
-		finalScale = other.scale
-	}
+	finalScale := max(d.scale, other.scale)
 
 	d1 := d.rescale(finalScale)
 	d2 := other.rescale(finalScale)
