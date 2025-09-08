@@ -4,6 +4,101 @@ import (
 	"testing"
 )
 
+func TestOperations_Rescale(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       Decimal
+		targetScale int32
+		expected    Decimal
+	}{
+		{
+			"RescaleUp",
+			New(123, 2), // 1.23
+			4,
+			New(12300, 4), // 1.2300
+		},
+		{
+			"RescaleDown",
+			New(12300, 4), // 1.2300
+			2,
+			New(123, 2), // 1.23
+		},
+		{
+			"RescaleSame",
+			New(123, 2), // 1.23
+			2,
+			New(123, 2), // 1.23
+		},
+		{
+			"RescaleDownWithTruncation",
+			New(12345, 4), // 1.2345
+			2,
+			New(123, 2), // 1.23
+		},
+		{
+			"RescaleNegativeScaleUp",
+			New(12345, -2), // 1234500
+			0,
+			New(1234500, 0), // 1234500
+		},
+		{
+			"RescaleNegativeScaleDown",
+			New(1234500, 0), // 1234500
+			-2,
+			New(12345, -2), // 1234500
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.input.rescale(tt.targetScale)
+			if result.unscaledValue.Cmp(tt.expected.unscaledValue) != 0 || result.scale != tt.expected.scale {
+				t.Errorf("rescale(%v, %d) = %v, want %v",
+					tt.input, tt.targetScale, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestOperations_Abs(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    Decimal
+		expected Decimal
+	}{
+		{
+			"AbsPositive",
+			New(5, 0),
+			New(5, 0),
+		},
+		{
+			"AbsNegative",
+			New(-5, 0),
+			New(5, 0),
+		},
+		{
+			"AbsZero",
+			New(0, 0),
+			New(0, 0),
+		},
+		{
+			"AbsLargeNegative",
+			Decimal{unscaledValue: bigIntFromString("-9223372036854775808"), scale: 0},
+			Decimal{unscaledValue: bigIntFromString("9223372036854775808"), scale: 0},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.input.Abs()
+			if result.unscaledValue.Cmp(tt.expected.unscaledValue) != 0 || result.scale != tt.expected.scale {
+				t.Errorf("Abs(%v) = %v, want %v",
+					tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestOperations_Add(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -132,7 +227,7 @@ func TestOperations_Add(t *testing.T) {
 	}
 }
 
-func TestOperations_Sub(t *testing.T) {
+func TestOperations_Subtract(t *testing.T) {
 	tests := []struct {
 		name     string
 		a        Decimal

@@ -34,6 +34,16 @@ func (d Decimal) rescale(targetScale int32) Decimal {
 	}
 }
 
+func (d Decimal) Abs() Decimal {
+	if d.unscaledValue == nil {
+		return Decimal{}
+	}
+	return Decimal{
+		unscaledValue: new(big.Int).Abs(d.unscaledValue),
+		scale:         d.scale,
+	}
+}
+
 func (d Decimal) Add(other Decimal) Decimal {
 	finalScale := max(d.scale, other.scale)
 
@@ -62,5 +72,17 @@ func (d Decimal) Multiply(other Decimal) Decimal {
 	return Decimal{
 		unscaledValue: new(big.Int).Mul(d.unscaledValue, other.unscaledValue),
 		scale:         d.scale + other.scale,
+	}
+}
+
+func (d Decimal) Divide(other Decimal) Decimal {
+	// To maintain precision, we scale up the dividend before division.
+	scaleFactor := int32(10) // This can be adjusted based on desired precision.
+	pow10 := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scaleFactor)), nil)
+	scaledDividend := new(big.Int).Mul(d.unscaledValue, pow10)
+
+	return Decimal{
+		unscaledValue: new(big.Int).Div(scaledDividend, other.unscaledValue),
+		scale:         d.scale - other.scale + scaleFactor,
 	}
 }
