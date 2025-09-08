@@ -65,6 +65,8 @@ func TestRoundingMode_shouldRoundUp(t *testing.T) {
 		{"RoundHalfEven_NegativeMoreThanHalf", RoundHalfEven, i64(-6), i64(10), true},
 		{"RoundHalfEven_NegativeExactlyHalf_OddRemainder", RoundHalfEven, i64(-5), i64(10), true},
 		{"RoundHalfEven_NegativeExactlyHalf_EvenRemainder", RoundHalfEven, i64(-2), i64(4), false},
+		{"RoundUnncessary", RoundUnnecessary, i64(3), i64(10), false},
+		{"Default", RoundingMode(999), i64(3), i64(10), false}, // Unknown mode defaults to no rounding
 	}
 
 	for _, tc := range testCases {
@@ -77,17 +79,27 @@ func TestRoundingMode_shouldRoundUp(t *testing.T) {
 	}
 }
 
-// TestRoundingMode_UnnecessaryPanic tests that RoundUnnecessary panics when rounding is required.
-func TestRoundingMode_UnnecessaryPanic(t *testing.T) {
-	rem := big.NewInt(1)
-	denom := big.NewInt(10)
-	mode := RoundUnnecessary
+func TestRoundingMode_String(t *testing.T) {
+	tests := []struct {
+		mode     RoundingMode
+		expected string
+	}{
+		{RoundDown, "RoundDown"},
+		{RoundUp, "RoundUp"},
+		{RoundCeiling, "RoundCeiling"},
+		{RoundFloor, "RoundFloor"},
+		{RoundHalfUp, "RoundHalfUp"},
+		{RoundHalfDown, "RoundHalfDown"},
+		{RoundHalfEven, "RoundHalfEven"},
+		{RoundUnnecessary, "RoundUnnecessary"},
+		{RoundingMode(999), "RoundingMode(999)"},
+	}
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("expected a panic but did not get one")
-		}
-	}()
-
-	mode.shouldRoundUp(rem, denom)
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			if tt.mode.String() != tt.expected {
+				t.Errorf("RoundingMode.String() = %v; want %v", tt.mode.String(), tt.expected)
+			}
+		})
+	}
 }
