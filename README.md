@@ -96,14 +96,14 @@ func main() {
 ### Initializers
 
   * `New(val int64, scale int32)`: Creates a new `Decimal` from a scaled `int64`.
-  * `NewFromInt(val int)`: Creates a new `Decimal` from an `int`.
+  * `NewFromInt(val int32)`: Creates a new `Decimal` from an `int32`.
   * `NewFromInt64(val int64)`: Creates a new `Decimal` from an `int64`.
   * `NewFromUint64(val uint64)`: Creates a new `Decimal` from a `uint64`.
   * `NewFromBigInt(val *big.Int, scale int32)`: Creates a `Decimal` from a `big.Int` and a scale.
   * `NewFromString(s string)`: Creates a `Decimal` from a string.
   * `NewFromFloat64(val float64)`: Creates a `Decimal` from a `float64`.
-  * `NewFromRat(val *big.Rat)`: Creates a `Decimal` from a `big.Rat`.
-  * `NewFromBytes(b []byte)`: Creates a `Decimal` from a byte slice.
+  * `NewFromRat(val *big.Rat, precision int32, roundingMode RoundingMode)`: Creates a `Decimal` from a `big.Rat`.
+  * `NewFromBytes(val []byte)`: Creates a `Decimal` from a byte slice.
 
 ### Operations
 
@@ -119,7 +119,7 @@ func main() {
   * `Sign() int`: Returns the sign of the decimal.
 
 ### Converters & Utilities
-
+  * `Scan(value interface{})`: Scan value from database and assigns to the decimal variable.
   * `String() string`: Returns a canonical string representation.
   * `StringFixed(places int32) string`: Returns a string with a fixed number of decimal places, with rounding.
   * `Int64() (int64, bool)`: Converts the decimal to `int64`, returning a boolean indicating if the conversion was exact.
