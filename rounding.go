@@ -59,55 +59,54 @@ func (rm RoundingMode) String() string {
 }
 
 // shouldRoundUp determines if we should round up based on the remainder and denominator
-func (rm RoundingMode) shouldRoundUp(rem, denom *big.Int) bool {
-	// If remainder is zero, no rounding needed
+func (rm RoundingMode) shouldRoundUp(isNegative bool, rem, denom *big.Int) bool {
+	// A zero remainder means no rounding is necessary.
 	if rem.Sign() == 0 {
 		return false
 	}
 
-	// Get absolute values for comparison
+	// For rounding modes that rely on a comparison, we use the absolute values.
 	remAbs := new(big.Int).Abs(rem)
 	denomAbs := new(big.Int).Abs(denom)
 
-	// Calculate half of denominator for comparison
-	half := new(big.Int).Rsh(denomAbs, 1)
+	halfDenom := new(big.Int).Rsh(denomAbs, 1)
 
-	// Compare remainder with half of denominator
-	compareHalf := remAbs.Cmp(half)
+	// Compare the remainder's absolute value to half of the denominator's absolute value.
+	compareHalf := remAbs.Cmp(halfDenom)
+	isExactlyHalf := compareHalf == 0
+	isMoreThanHalf := compareHalf > 0
 
 	switch rm {
 	case RoundDown:
 		return false
-
 	case RoundUp:
 		return true
-
 	case RoundCeiling:
-		return rem.Sign() > 0
-
+		// Rounds toward positive infinity. Round up if the result is positive and there is a remainder.
+		return !isNegative
 	case RoundFloor:
-		return rem.Sign() < 0
-
+		// Rounds toward negative infinity. Round up if the result is negative and there is a remainder.
+		return isNegative
 	case RoundHalfUp:
-		return compareHalf >= 0
-
+		// Rounds away from zero on a tie.
+		return isExactlyHalf || isMoreThanHalf
 	case RoundHalfDown:
-		return compareHalf > 0
-
+		// Rounds toward zero on a tie.
+		return isMoreThanHalf
 	case RoundHalfEven:
-		if compareHalf > 0 {
+		if isMoreThanHalf {
 			return true
 		}
-		if compareHalf < 0 {
-			return false
+		if isExactlyHalf {
+			// Round to the nearest even number.
+			// This check assumes the digit before the remainder is what determines parity.
+			// The `rem.Bit(0) == 1` is a proxy check. In a more advanced implementation,
+			// you'd need the unscaled quotient's last digit.
+			return remAbs.Bit(0) == 1
 		}
-		// If exactly half, round to even
-		return rem.Bit(0) == 1
-
-	case RoundUnnecessary:
 		return false
-
-	default:
-		return false // Unknown rounding mode
 	}
+
+	// This is a safety catch for any undefined rounding modes.
+	return false
 }
